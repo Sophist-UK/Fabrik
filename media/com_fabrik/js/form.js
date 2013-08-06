@@ -58,7 +58,7 @@ var FbForm = new Class({
 		(function () {
 			this.duplicateGroupsToMin();
 		}.bind(this)).delay(1000);
-		
+
 		// Delegated element events
 		this.events = {};
 	},
@@ -207,11 +207,21 @@ var FbForm = new Class({
 
 	setUp: function () {
 		this.form = this.getForm();
+		// Paul - Identify whether tabbed or paged
+		this.tabbed = false;
+		if (this.form) {
+			if (this.getForm().getElement('form.fabrikform ul.nav-tabs')) {
+				this.tabbed = true;
+			}
+		}
 		this.watchGroupButtons();
-		//if (this.options.editable) { //submit can appear in confirmation plugin even when readonly
 		this.watchSubmit();
-		//}
-		this.createPages();
+		if (this.tabbed)
+		{
+			this.createTabs();
+		} else {
+			this.createPages();
+		}
 		this.watchClearSession();
 	},
 
@@ -403,8 +413,11 @@ var FbForm = new Class({
 		}
 	},
 
+	createTabs: function () {
+	},
+
 	createPages: function () {
-		var submit, p, firstGroup, tabDiv;
+		var submit, p, firstGroup;
 		if (this.options.pages.getKeys().length > 1) {
 
 			// Wrap each page in its own div
@@ -415,12 +428,6 @@ var FbForm = new Class({
 				});
 				firstGroup = document.id('group' + page[0]);
 				if (typeOf(firstGroup) !== 'null') {
-
-					// Paul - Don't use pages if this is a bootstrap_tab form
-					tabDiv = firstGroup.getParent('div');
-					if (typeOf(tabDiv) === 'null' || tabDiv.hasClass('tab-pane')) {
-						return;
-					}
 					p.inject(firstGroup, 'before');
 					page.each(function (group) {
 						p.adopt(document.id('group' + group));
@@ -429,8 +436,7 @@ var FbForm = new Class({
 			});
 			submit = this._getButton('submit');
 			if (submit && this.options.rowid === '') {
-				submit.disabled = "disabled";
-				submit.setStyle('opacity', 0.5);
+				this.elementDisable(submit);
 			}
 			if (typeOf(document.getElement('.fabrikPagePrevious')) !== 'null') {
 				this.form.getElement('.fabrikPagePrevious').disabled = "disabled";
@@ -438,7 +444,7 @@ var FbForm = new Class({
 					this._doPageNav(e, -1);
 				}.bind(this));
 			}
-			if (typeOf(document.getElement('.fabrikPagePrevious')) !== 'null') {
+			if (typeOf(document.getElement('.fabrikPageNext')) !== 'null') {
 				this.form.getElement('.fabrikPageNext').addEvent('click', function (e) {
 					this._doPageNav(e, 1);
 				}.bind(this));
@@ -463,9 +469,9 @@ var FbForm = new Class({
 			if (typeOf(document.getElement('.tool-tip')) !== 'null') {
 				document.getElement('.tool-tip').setStyle('top', 0);
 			}
-			// Don't prepend with Fabrik.liveSite, as it can create cross origin browser errors if you are on www and livesite is not on www. 
+			// Don't prepend with Fabrik.liveSite, as it can create cross origin browser errors if you are on www and livesite is not on www.
 			var url = 'index.php?option=com_fabrik&format=raw&task=form.ajax_validate&form_id=' + this.id;
-			
+
 			Fabrik.loader.start(this.getBlock(), Joomla.JText._('COM_FABRIK_VALIDATING'));
 
 			// Only validate the current groups elements, otherwise validations on
@@ -487,11 +493,19 @@ var FbForm = new Class({
 				onComplete: function (r) {
 					Fabrik.loader.stop(this.getBlock());
 					r = JSON.decode(r);
-
-					// Don't show validation errors if we are going back a page
-					if (dir === -1 || this._showGroupError(r, d) === false) {
-						this.changePage(dir);
+					// Show error fields
+					var sGE = this._showGroupError(r, d);
+					if (sGE) {
+						submit = this._getButton('submit');
+						if (typeOf(submit) !== 'null') {
+							this.elementDisable(submit);
+						}
+					} else {
 						this.saveGroupsToDb();
+					}
+					// Next only if no errors, Prev regardless
+					if (!sGE || dir === -1) {
+						this.changePage(dir);
 					}
 					new Fx.Scroll(window).toElement(this.form);
 				}.bind(this)
@@ -542,8 +556,7 @@ var FbForm = new Class({
 	},
 
 	changePage: function (dir) {
-		this.changePageDir = dir;
-		Fabrik.fireEvent('fabrik.form.page.change', [this]);
+		Fabrik.fireEvent('fabrik.form.page.change.start', [this]);
 		if (this.result === false) {
 			this.result = true;
 			return;
@@ -560,7 +573,6 @@ var FbForm = new Class({
 		document.id('page_' + this.currentPage).setStyle('display', '');
 		this._setMozBoxWidths();
 		this.hideOtherPages();
-		Fabrik.fireEvent('fabrik.form.page.chage.end', [this]);
 		Fabrik.fireEvent('fabrik.form.page.change.end', [this]);
 		if (this.result === false) {
 			this.result = true;
@@ -603,29 +615,35 @@ var FbForm = new Class({
 		if (typeOf(next) !== 'null') {
 			if (this.currentPage === this.options.pages.getKeys().length - 1) {
 				if (typeOf(submit) !== 'null') {
-					submit.disabled = "";
-					submit.setStyle('opacity', 1);
+					this.elementEnable(submit);
 				}
-				next.disabled = "disabled";
-				next.setStyle('opacity', 0.5);
+				this.elementDisable(next);
 			} else {
-				if (typeOf(submit) !== 'null' && (this.options.rowid === '' || this.options.rowid.toString() === '0')) {
-					submit.disabled = "disabled";
-					submit.setStyle('opacity', 0.5);
-				}
-				next.disabled = "";
-				next.setStyle('opacity', 1);
+				this.elementEnable(next);
 			}
 		}
 		if (typeOf(prev) !== 'null') {
 			if (this.currentPage === 0) {
-				prev.disabled = "disabled";
-				prev.setStyle('opacity', 0.5);
+				this.elementDisable(prev);
 			} else {
-				prev.disabled = "";
-				prev.setStyle('opacity', 1);
+				this.elementEnable(prev);
 			}
 		}
+	},
+
+	/**
+	 * Enable / Disable elements
+	 *
+	 * @param  Elements to enable / disable
+	 */
+	elementEnable: function (el) {
+		el.disabled = "";
+		el.setStyle('opacity', 1.0);
+	},
+
+	elementDisable: function (el) {
+		el.disabled = "disabled";
+		el.setStyle('opacity', 0.5);
 	},
 
 	destroyElements: function () {
@@ -695,7 +713,7 @@ var FbForm = new Class({
 	 *
 	 * @param   string  elementType  Deprecated
 	 * @param   string  elementId    Element key to look up in this.formElements
-	 * @param   string  action       Event chage/click etc
+	 * @param   string  action       Event change/click etc
 	 * @param   mixed   js           String or function
 	 */
 
@@ -791,7 +809,7 @@ var FbForm = new Class({
 				return;
 			}
 		}
-		Fabrik.fireEvent('fabrik.form.element.validaton.start', [this, el, e]);
+		Fabrik.fireEvent('fabrik.form.element.validation.start', [this, el, e]);
 		if (this.result === false) {
 			this.result = true;
 			return;
@@ -819,12 +837,12 @@ var FbForm = new Class({
 			method: this.options.ajaxmethod,
 			data: d,
 			onComplete: function (e) {
-				this._completeValidaton(e, id, origid);
+				this._completeValidation(e, id, origid);
 			}.bind(this)
 		}).send();
 	},
 
-	_completeValidaton: function (r, id, origid) {
+	_completeValidation: function (r, id, origid) {
 		r = JSON.decode(r);
 		if (typeOf(r) === 'null') {
 			this._showElementError(['Oups'], id);
@@ -834,7 +852,7 @@ var FbForm = new Class({
 		this.formElements.each(function (el, key) {
 			el.afterAjaxValidation();
 		});
-		Fabrik.fireEvent('fabrik.form.elemnet.validation.complete', [this, r, id, origid]);
+		Fabrik.fireEvent('fabrik.form.element.validation.complete', [this, r, id, origid]);
 		if (this.result === false) {
 			this.result = true;
 			return;
@@ -880,20 +898,15 @@ var FbForm = new Class({
 				var el = this.formElements.get(k);
 				if (gids.contains(el.groupid.toInt())) {
 					if (r.errors[k]) {
-					// prepare error so that it only triggers for real errors and not sucess
-					// msgs
-
+						// prepare error so that it only triggers for real errors and not sucess msgs
 						var msg = '';
 						if (typeOf(r.errors[k]) !== 'null') {
 							msg = r.errors[k].flatten().join('<br />');
 						}
 						if (msg !== '') {
-							tmperr = this._showElementError(r.errors[k], k);
-							if (err === false) {
-								err = tmperr;
-							}
+							err = err || this._showElementError(r.errors[k], k);
 						} else {
-							el.setErrorMessage('', '');
+							el.setErrorMessage('', k);
 						}
 					}
 					if (r.modified[k]) {
@@ -909,8 +922,7 @@ var FbForm = new Class({
 	},
 
 	_showElementError : function (r, id) {
-		// r should be the errors for the specific element, down to its repeat group
-		// id.
+		// r should be the errors for the specific element, down to its repeat group id.
 		var msg = '';
 		if (typeOf(r) !== 'null') {
 			msg = r.flatten().join('<br />');
@@ -919,7 +931,7 @@ var FbForm = new Class({
 		if (msg === '') {
 			msg = Joomla.JText._('COM_FABRIK_SUCCESS');
 		}
-		msg = '<span> ' + msg + '</span>';
+		msg = '<span>' + msg + ' </span>';
 		this.formElements.get(id).setErrorMessage(msg, classname);
 		return (classname === 'fabrikSuccess') ? false : true;
 	},
@@ -1332,7 +1344,7 @@ var FbForm = new Class({
 	},
 
 	deleteGroup: function (e) {
-		Fabrik.fireEvent('fabrik.form.group.delete', [this, e]);
+		Fabrik.fireEvent('fabrik.form.group.delete.start', [this, e]);
 		if (this.result === false) {
 			this.result = true;
 			return;
@@ -1486,7 +1498,7 @@ var FbForm = new Class({
 
 	duplicateGroup: function (e) {
 		var subElementContainer, container;
-		Fabrik.fireEvent('fabrik.form.group.duplicate', [this, e]);
+		Fabrik.fireEvent('fabrik.form.group.duplicate.start', [this, e]);
 		if (this.result === false) {
 			this.result = true;
 			return;
