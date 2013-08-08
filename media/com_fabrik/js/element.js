@@ -49,7 +49,7 @@ var FbElement =  new Class({
 	setElement: function () {
 		if (document.id(this.options.element)) {
 			this.element = document.id(this.options.element);
-			this.setorigId();
+			this.setOrigId();
 			return true;
 		}
 		return false;
@@ -338,7 +338,7 @@ var FbElement =  new Class({
 	/**
 	 * get the dom element which shows the error messages
 	 */
-	getErrorElement: function ()
+	getErrorElements: function ()
 	{
 		return this.getContainer().getElements('.fabrikErrorMessage');
 	},
@@ -348,7 +348,7 @@ var FbElement =  new Class({
 	 */
 	getValidationFx: function () {
 		if (!this.validationFX) {
-			this.validationFX = new Fx.Morph(this.getErrorElement()[0], {duration: 500, wait: true});
+			this.validationFX = new Fx.Morph(this.getErrorElements()[0], {duration: 500, wait: true});
 		}
 		return this.validationFX;
 	},
@@ -370,8 +370,6 @@ var FbElement =  new Class({
 	 * In 3.1 show error messages in tips - avoids jumpy pages with ajax validations
 	 */
 	addTipMsg: function (msg, klass) {
-console.log(msg);
-console.log(klass);
 		// Append notice to tip
 		klass = klass ? klass : 'error';
 		var ul, a, t = this.tips();
@@ -401,7 +399,6 @@ console.log(klass);
 	 * In 3.1 show/hide error messages in tips - avoids jumpy pages with ajax validations
 	 */
 	removeTipMsg: function (klass) {
-console.log(klass);
 		var klass = klass ? klass : 'error',
 		t = this.tips();
 		t = jQuery(t[0]);
@@ -424,15 +421,15 @@ console.log(klass);
 	setErrorMessage: function (msg, classname) {
 		var container = this.getContainer();
 		if (container === false) {
-			console.log('Notice: couldn not set error msg for ' + msg + ' no container class found');
+			fconsole('element.js: Could not display error msg for ' + msg + ' no container class found');
 			return;
 		}
-		var a, m;
+		var m;
 		var classes = ['fabrikValidating', 'fabrikError', 'fabrikSuccess'];
 		classes.each(function (c) {
-			var r = classname === c ? container.addClass(c) : container.removeClass(c);
+			classname === c ? container.addClass(c) : container.removeClass(c);
 		});
-		var errorElements = this.getErrorElement();
+		var errorElements = this.getErrorElements();
 		errorElements.each(function (e) {
 			e.empty();
 		});
@@ -440,39 +437,42 @@ console.log(klass);
 			case 'fabrikError':
 				Fabrik.loader.stop(this.element);
 				container.removeClass('success').removeClass('info').addClass('error');
-				if (Fabrik.bootstrapped) {
+				// Temporarily disabling tooltips so we can test normal validation
+				if (Fabrik.bootstrapped && false) {
 					this.addTipMsg(msg, classname);
 				} else {
-					a = new Element('a', {'href': '#', 'title': msg, 'events': {
-						'click': function (e) {
-							e.stop();
-						}
-					}}).adopt(this.alertImage);
-					Fabrik.tips.attach(a);
-					errorElements[0].adopt(a);
-
-					// If tmpl has additional error message divs (e.g labels above) then set html msg there
-					if (errorElements.length > 1) {
-						for (i = 1; i < errorElements.length; i ++) {
-							errorElements[i].set('html', msg);
-						}
-					}
+					errorElements.each(function (e) {
+						e.addClass('text-error');
+						e.set('html', '&nbsp;' + msg);
+						e.grab(this.alertImage, 'top');
+						e.removeClass('fabrikHide');
+					}.bind(this));
 				}
 				break;
 
 			case 'fabrikSuccess':
-				if (Fabrik.bootstrapped) {
+				// Temporarily disabling tooltips so we can test normal validation
+				if (Fabrik.bootstrapped && false) {
 					container.removeClass('success').removeClass('info').removeClass('error');
 					Fabrik.loader.stop(this.element);
 					this.removeTipMsg(classname);
 				} else {
 					container.addClass('success').removeClass('info').removeClass('error');
-					errorElements[0].adopt(this.successImage);
-					var delFn = function () {
-						errorElements[0].addClass('fabrikHide');
-						container.removeClass('success');
-					};
-					delFn.delay(700);
+					errorElements.each(function (e) {
+						e.removeClass('text-error');
+						e.adopt(this.successImage);
+					}.bind(this));
+					var delfn = function () {
+						var container = this.getContainer();
+						if (container.hasClass('fabrikSuccess')) {
+							errorElements.each(function (e) {
+								e.empty();
+								e.addClass('fabrikHide');
+							});
+							container.removeClass('success');
+						}
+					}.bind(this);
+					window.setTimeout(delfn, 5000);
 				}
 				break;
 
@@ -483,16 +483,12 @@ console.log(klass);
 				break;
 		}
 
-		this.getErrorElement().removeClass('fabrikHide');
-		var parent = this.form;
-		if (classname === 'fabrikError' || classname === 'fabrikSuccess') {
-			parent.updateMainError();
-		}
-
+		/* The following code can be reintegrated into the above code if we want to fade in / out messages
 		var fx = this.getValidationFx();
 		switch (classname) {
 			case 'fabrikValidating':
 			case 'fabrikError':
+				var fx = this.getValidationFx();
 				fx.start({
 					'opacity': 1
 				});
@@ -509,7 +505,6 @@ console.log(klass);
 							'opacity': 0,
 							'onComplete': function () {
 								container.addClass('success').removeClass('error');
-								parent.updateMainError();
 								classes.each(function (c) {
 									container.removeClass(c);
 								});
@@ -518,10 +513,10 @@ console.log(klass);
 					}
 				});
 				break;
-		}
+		} */
 	},
 
-	setorigId: function ()
+	setOrigId: function ()
 	{
 		// $$$ added inRepeatGroup option, as repeatCounter > 0 doesn't help
 		// if element is in first repeat of a group
