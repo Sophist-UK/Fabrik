@@ -58,16 +58,16 @@ $listDirn = $this->state->get('list.direction');
 				<th width="1%">
 					<input type="checkbox" name="toggle" value="" onclick="Joomla.checkAll(this)" />
 				</th>
-				<th width="30%" >
+				<th width="25%" >
 					<?php echo JHTML::_('grid.sort', 'COM_FABRIK_NAME', 'g.name', $listDirn, $listOrder); ?>
 				</th>
-				<th width="30%" >
+				<th width="25%" >
 					<?php echo JHTML::_('grid.sort', 'COM_FABRIK_LABEL', 'g.label', $listDirn, $listOrder); ?>
 				</th>
-				<th width="30%">
+				<th width="25%">
 					<?php echo JHTML::_('grid.sort', 'COM_FABRIK_FORM', 'f.label', $listDirn, $listOrder); ?>
 				</th>
-				<th width="31%">
+				<th width="12%">
 					<?php echo JText::_('COM_FABRIK_ELEMENTS'); ?>
 				</th>
 				<th width="5%">
