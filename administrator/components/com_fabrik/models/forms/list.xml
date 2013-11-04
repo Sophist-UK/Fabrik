@@ -114,7 +114,7 @@
 			description="COM_FABRIK_FIELD_DATABASE_NAME_DESC"
 		/>
 
-		<field name="or" type="spacer" size="20" label="Or" />
+		<field name="or" type="spacer" size="20" label="COM_FABRIK_OR" />
 
 		<field name="db_table_name"
 		 	type="tables"
@@ -723,7 +723,7 @@
 				label="COM_FABRIK_FIELD_SEARCH_DESCRIPTION_FIELD_LABEL"
 				description="COM_FABRIK_FIELD_SEARCH_DESCRIPTION_FIELD_DESC"
 			/>
-			
+
 			<field name="search_link_type"
 				type="radio"
 				class="btn-group"
@@ -731,7 +731,7 @@
 				label="COM_FABRIK_FIELD_SEARCH_LINK_TYPE_LABEL"
 				description="COM_FABRIK_FIELD_SEARCH_LINK_TYPE_DESC">
 					<option value="details">COM_FABRIK_DETAILS</option>
-					<option value="form">COM_FABRIK_FORM</option>	
+					<option value="form">COM_FABRIK_FORM</option>
 			</field>
 
 		</fieldset>
