@@ -108,17 +108,6 @@ var FbList = new Class({
 		}
 	},
 
-	setRowTemplate: function () {
-		// $$$ rob mootools 1.2 has bug where we cant setHTML on table
-		// means that there is an issue if table contains no data
-		if (typeOf(this.options.rowtemplate) === 'string') {
-			var r = this.list.getElement('.fabrik_row');
-			if (window.ie && typeOf(r) !== 'null') {
-				this.options.rowtemplate = r;
-			}
-		}
-	},
-
 	/**
 	 * Used for db join select states.
 	 */
@@ -422,7 +411,10 @@ var FbList = new Class({
 			method: 'post',
 			data: opts,
 			onError: function (text, error) {
-				fconsole(text, error);
+				fconsole("Fabrik:list:triggerCSVExport error:" + error, text);
+			},
+			onFailure: function (xhr) {
+				fconsole(xhr);
 			},
 			onComplete: function (res) {
 				if (res.err) {
@@ -572,7 +564,7 @@ var FbList = new Class({
 					}
 				});
 				if (!elementId) {
-					fconsole('Fabrik: list.js:watchorder:click: Could not find fabrik elementid to order by');
+					fconsole('Fabrik:list:watchorder:click: Could not find fabrik elementid to order by');
 					return;
 				}
 				h.className = newOrderClass;
@@ -707,7 +699,8 @@ var FbList = new Class({
 
 	submit: function (task) {
 		this.getForm();
-		if (task === 'list.delete') {
+		switch (task) {
+		case 'list.delete':
 			var ok = false;
 			var delCount = 0;
 			this.form.getElements('input[name^=ids]').each(function (c) {
@@ -718,31 +711,36 @@ var FbList = new Class({
 			});
 			if (!ok) {
 				alert(Joomla.JText._('COM_FABRIK_SELECT_ROWS_FOR_DELETION'));
-				Fabrik.loader.stop('listform_' + this.options.listRef);
 				return false;
 			}
 			var delMsg = delCount === 1 ? Joomla.JText._('COM_FABRIK_CONFIRM_DELETE_1') : Joomla.JText._('COM_FABRIK_CONFIRM_DELETE').replace('%s', delCount);
 			if (!confirm(delMsg)) {
-				Fabrik.loader.stop('listform_' + this.options.listRef);
 				this.uncheckAll();
 				return false;
 			}
-		}
+			break;
+
 		// We may want to set this as an option - if long page loads feedback that list is doing something might be useful
 		// Fabrik.loader.start('listform_' + this.options.listRef);
-		if (task === 'list.filter') {
+		case 'list.filter':
 			Fabrik['filter_listform_' + this.options.listRef].onSubmit();
 			this.form.task.value = task;
 			if (this.form['limitstart' + this.id]) {
 				this.form.getElement('#limitstart' + this.id).value = 0;
 			}
-		} else {
+			break;
+
+		default:
 			if (task !== '') {
 				this.form.task.value = task;
 			}
 		}
+		Fabrik.fireEvent('fabrik.list.submit', [task, this.form.toQueryString().toObject()]);
+		if (!this.result) {
+			this.result = true;
+			return false;
+		}
 		if (this.options.ajax) {
-			Fabrik.loader.start('listform_' + this.options.listRef);
 			// For module & mambot
 			// $$$ rob with modules only set view/option if ajax on
 			this.form.getElement('input[name=option]').value = 'com_fabrik';
@@ -761,13 +759,32 @@ var FbList = new Class({
 			for (var i = 0; i < this.options.fabrik_show_in_list.length; i ++) {
 				data += '&fabrik_show_in_list[]=' + this.options.fabrik_show_in_list[i];
 			}
-
 			// Add in tmpl for custom nav in admin
 			data += '&tmpl=' + this.options.tmpl;
+			Fabrik.fireEvent('fabrik.list.submit.ajax.start', [task, this.form.toQueryString().toObject()]);
+			if (!this.result) {
+				this.result = true;
+				return false;
+			}
 			if (!this.request) {
 				this.request = new Request({
 					'url': this.form.get('action'),
 					'data': data,
+
+					onRequest: function(){
+						Fabrik.loader.start('listform_' + this.options.listRef);
+					}.bind(this),
+
+					onCancel: function(){
+						Fabrik.loader.stop('listform_' + this.options.listRef);
+						this.request = null;
+					}.bind(this),
+
+					onFailure: function(xhr){
+						fconsole('Fabrik:list:submit Ajax failure: Code ' + xhr.status + ': ' + xhr.statusText);
+						this.request = null;
+					}.bind(this),
+
 					onComplete: function (json) {
 						json = JSON.decode(json);
 						this._updateRows(json);
@@ -775,11 +792,12 @@ var FbList = new Class({
 						Fabrik['filter_listform_' + this.options.listRef].onUpdateData();
 						Fabrik.fireEvent('fabrik.list.submit.ajax.complete', [this, json]);
 						if (json.msg) {
-							alert(json.msg);
+							fconsole('Fabrik:list:submit:onComplete: json msg:' + json.msg);
 						}
 					}.bind(this)
 				});
 			} else {
+				this.request.cancel();
 				this.request.options.data = data;
 			}
 			this.request.send();
@@ -912,13 +930,27 @@ var FbList = new Class({
 			},
 			onFailure: function (xhr) {
 				fconsole(xhr);
-			}
+			},
 		}).send();
+	},
+
+	setRowTemplate: function () {
+		// $$$ rob mootools 1.2 has bug where we cant setHTML on table
+		// means that there is an issue if table contains no data
+		if (typeOf(this.options.rowtemplate) === 'string') {
+			var r = this.list.getElement('.fabrik_row');
+			if (window.ie && typeOf(r) !== 'null') {
+				this.options.rowtemplate = r;
+			}
+		}
 	},
 
 	_updateRows: function (data) {
 		var tbody;
 		if (typeOf(data) !== 'object') {
+			if (Fabrik.debug) {
+				fconsole('Fabrik:list:_updaterows: data not object');
+			}
 			return;
 		}
 		if (window.history && window.history.pushState) {
@@ -1063,7 +1095,6 @@ var FbList = new Class({
 		}
 		this.stripe();
 		this.mediaScan();
-		Fabrik.loader.stop('listform_' + this.options.listRef);
 	},
 
 	mediaScan: function () {
@@ -1279,13 +1310,19 @@ var FbListKeys = new Class({
 					break;
 
 				case Joomla.JText._('COM_FABRIK_LIST_SHORTCUTS_EDIT'):
-					fconsole('edit');
+					if (Fabrik.debug) {
+						fconsole('edit');
+					}
 					break;
 				case Joomla.JText._('COM_FABRIK_LIST_SHORTCUTS_DELETE'):
-					fconsole('delete');
+					if (Fabrik.debug) {
+						fconsole('delete');
+					}
 					break;
 				case Joomla.JText._('COM_FABRIK_LIST_SHORTCUTS_FILTER'):
-					fconsole('filter');
+					if (Fabrik.debug) {
+						fconsole('filter');
+					}
 					break;
 				}
 			}
