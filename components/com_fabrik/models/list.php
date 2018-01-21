@@ -8324,6 +8324,9 @@ class FabrikFEModelList extends JModelForm
 		$item->name = $item->label = 'parent_id';
 		$item->hidden = 1;
 		$item->group_id = $groupId;
+		$item->text_format = "integer";
+		$item->integer_length = 11;
+		$item->decimal_length = 0;
 
 		if (!$item->store())
 		{
