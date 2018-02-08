@@ -233,7 +233,8 @@ var FabrikModalRepeat = new Class({
             // Chosen reset
             clone.getElements('select').removeClass('chzn-done').show();
 
-            // Assign random id
+            // Sophist - Chosen is only active on open modals - rows already have unique ids
+            // and this may be screwing up finding the elements to update options
             clone.getElements('select').each(function (c) {
                 c.id = c.id + '_' + (Math.random() * 10000000).toInt();
             });
