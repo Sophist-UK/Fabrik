@@ -38,7 +38,7 @@ var FbRepeatGroup = new Class({
 
 			// Update params ids
 			if (this.counter !== 0) {
-				c.getElements('input, select').each(function (i) {
+				c.getElements('input, select, textarea.FbEditor').each(function (i) {
 					var newPlugin = false;
 					var newid = '';
 					var oldid = i.id;
@@ -78,6 +78,9 @@ var FbRepeatGroup = new Class({
 
 				// Replace data-showon counters
 				this._updateShowon(c, +1, 0);
+				FabrikAdmin.reTip();
+
+				document.dispatchEvent(new CustomEvent('fabrikadmin.repeatgroup.add', {'detail':c}));
 			}
 		}.bind(this));
 	},
@@ -91,11 +94,12 @@ var FbRepeatGroup = new Class({
 		this.element.getElements('a[data-button=deleteButton]').each(function (r, x) {
 			r.addEvent('click', function (e) {
 				e.stop();
-				var count = this.getCounter();
-				if (count > this.options.repeatmin) {
-					var u = this.repeatContainers().getLast();
-					u.destroy();
+				if (this.getCounter() <= this.options.repeatmin) {
+					return;
 				}
+				var u = this.repeatContainers().getLast();
+				document.dispatchEvent(new CustomEvent('fabrikadmin.repeatgroup.remove', {'detail':u}));
+				u.destroy();
 				this.rename(x);
 				this._updateShowon(this.element, -1, x);
 			}.bind(this));
@@ -103,7 +107,7 @@ var FbRepeatGroup = new Class({
 	},
 
 	rename : function (x) {
-		this.element.getElements('input, select').each(function (i) {
+		this.element.getElements('input, select, textarea.FbEditor').each(function (i) {
 			i.name = this._adjustName(i.name, -1, x);
 		}.bind(this));
 	},
