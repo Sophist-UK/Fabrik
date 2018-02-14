@@ -49,7 +49,7 @@ var FbRepeatGroup = new Class({
 						i.id = newid;
 					}
 
-					this.increaseName(i);
+					i.name = this._adjustName(i.name, +1, 0);
 					$H(FabrikAdmin.model.fields).each(function (plugins, type) {
 						var newPlugin = false;
 						if (typeOf(FabrikAdmin.model.fields[type][oldid]) !== 'null') {
@@ -58,7 +58,7 @@ var FbRepeatGroup = new Class({
 							try {
 								newPlugin.cloned(newid, this.counter);
 							} catch (err) {
-								fconsole('no clone method available for ' + i.id);
+								fconsole('Fabrik repeatgroup: No clone method available for ' + i.id);
 							}
 						}
 						if (newPlugin !== false) {
@@ -70,12 +70,14 @@ var FbRepeatGroup = new Class({
 				}.bind(this));
 
 				c.getElements('img[src=components/com_fabrik/images/ajax-loader.gif]').each(function (i) {
-
 					var a = i.id.split('-');
 					a.pop();
 					var newid = a.join('-') + '-' + this.counter + '_loader';
 					i.id = newid;
 				}.bind(this));
+
+				// Replace data-showon counters
+				this._updateShowon(c, +1, 0);
 			}
 		}.bind(this));
 	},
@@ -95,34 +97,57 @@ var FbRepeatGroup = new Class({
 					u.destroy();
 				}
 				this.rename(x);
+				this._updateShowon(this.element, -1, x);
 			}.bind(this));
 		}.bind(this));
 	},
 
-	increaseName : function (i) {
-		var namebits = i.name.split('][');
-		var ref = namebits[2].replace(']', '').toInt() + 1;
-		namebits.splice(2, 1, ref);
-		i.name = namebits.join('][') + ']';
-	},
-
 	rename : function (x) {
 		this.element.getElements('input, select').each(function (i) {
-			i.name = this._decreaseName(i.name, x);
+			i.name = this._adjustName(i.name, -1, x);
 		}.bind(this));
 	},
 
-	_decreaseName: function (n, delIndex) {
+	_adjustName: function (n, delta, delIndex) {
 		var namebits = n.split('][');
 		var i = namebits[2].replace(']', '').toInt();
-		if (i >= 1  && i > delIndex) {
-			i --;
+		if (delta < 0 && (i < 1 || i < delIndex)) {
+			return n;
 		}
+		i += delta;
 		if (namebits.length === 3) {
 			i = i + ']';
 		}
 		namebits.splice(2, 1, i);
-		var r = namebits.join('][');
-		return r;
-	}
+		return namebits.join('][');
+	},
+
+	_updateShowon: function(rg, delta, minIndex) {
+		// Replace data-showon counters
+		rg.getElements('div[data-showon]').each(function (div) {
+			var showon = div.getProperty('data-showon');
+			// showon is a string of an array of json.
+			try {
+				showon = eval(showon);
+			}
+			catch(error) {
+				fconsole('Fabrik repeatgroup: data-showon with incorrect format:', showon);
+				return;
+			}
+			if (!Array.isArray(showon)) {
+				fconsole('Fabrik repeatgroup: showon not an array', showon);
+				return;
+			}
+			for (var j = 0; j < showon.length; j++) {
+				if (showon[j].hasOwnProperty('field')) {
+					showon[j].field = this._adjustName(showon[j].field, delta, minIndex);
+				}
+			}
+			div.setAttribute('data-showon', JSON.stringify(showon));
+		}.bind(this));
+
+		if (typeof Joomla.setUpShowon === "function") {
+			Joomla.setUpShowon(rg);
+		}
+	},
 });
