@@ -26,61 +26,63 @@ var FbRepeatGroup = new Class({
 	},
 
 	watchAdd : function () {
-		var newid;
 		this.element.getElement('a[data-button=addButton]').addEvent('click', function (e) {
 			e.stop();
 			var div = this.repeatContainers().getLast();
-			newc = this.counter + 1;
-			var id = div.id.replace('-' + this.counter, '-' + newc);
+			var newC = this.counter;
+			var id = div.id.replace('-' + (newC - 1), '-' + newC);
 			var c = new Element('div', {'class': 'repeatGroup', 'id': id}).set('html', div.innerHTML);
 			c.inject(div, 'after');
-			this.counter = newc;
+			this.counter++;
 
 			// Update params ids
 			if (this.counter !== 0) {
-				c.getElements('input, select, textarea.FbEditor').each(function (i) {
-					var newPlugin = false;
-					var newid = '';
-					var oldid = i.id;
-					if (i.id !== '') {
-						var a = i.id.split('-');
-						a.pop();
-						newid = a.join('-') + '-' + this.counter;
-						i.id = newid;
+				var chgEvent = new Event('change');
+				c.getElements('input, select, textarea, label, button').each(function (i) {
+					// Reset all select dropdowns to default for cloned item.
+					if (i.get('tag') == 'select') {
+						i.set('value', i.getElement('option').get('value'));
+						i.dispatchEvent(chgEvent);
 					}
 
-					i.name = this._adjustName(i.name, +1, 0);
+					// All fabrik elements have ids - if no id we cannot do much.
+					if (i.id === '') {
+						return;
+					}
+
+					var oldId = i.id;
+					var a = oldId.split('-');
+					a[1] = newC;
+					var newId = i.id = a.join('-');
+
+					c.getElements('[for="' + oldId + '"]').each(function (j) {
+						j.set('for',newId);
+					});
+
+					if (i.name) {
+						i.name = this._adjustName(i.name, +1, 0);
+					}
 					$H(FabrikAdmin.model.fields).each(function (plugins, type) {
 						var newPlugin = false;
-						if (typeOf(FabrikAdmin.model.fields[type][oldid]) !== 'null') {
-							var plugin = FabrikAdmin.model.fields[type][oldid];
-							newPlugin = Object.clone(plugin);
-							try {
-								newPlugin.cloned(newid, this.counter);
-							} catch (err) {
-								fconsole('Fabrik repeatgroup: No clone method available for ' + i.id);
+						if (typeOf(FabrikAdmin.model.fields[type][oldId]) !== 'null') {
+							var newPlugin = Object.clone(FabrikAdmin.model.fields[type][oldId]);
+							if (newPlugin !== false) {
+								newPlugin.cloned(newId, newC);
+								FabrikAdmin.model.fields[type][newId] = newPlugin;
 							}
 						}
-						if (newPlugin !== false) {
-							FabrikAdmin.model.fields[type][i.id] = newPlugin;
-						}
 					}.bind(this));
-
-
 				}.bind(this));
 
 				c.getElements('img[src=components/com_fabrik/images/ajax-loader.gif]').each(function (i) {
 					var a = i.id.split('-');
 					a.pop();
-					var newid = a.join('-') + '-' + this.counter + '_loader';
-					i.id = newid;
+					var newId = i.id = a.join('-') + '-' + this.counter + '_loader';
 				}.bind(this));
 
 				// Replace data-showon counters
 				this._updateShowon(c, +1, 0);
 				FabrikAdmin.reTip();
-
-				document.dispatchEvent(new CustomEvent('fabrikadmin.repeatgroup.add', {'detail':c}));
 			}
 		}.bind(this));
 	},
