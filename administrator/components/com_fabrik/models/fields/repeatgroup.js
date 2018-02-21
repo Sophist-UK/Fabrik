@@ -41,8 +41,11 @@ var FbRepeatGroup = new Class({
 				c.getElements('input, select, textarea, label, button').each(function (i) {
 					// Reset all select dropdowns to default for cloned item.
 					if (i.get('tag') == 'select') {
-						i.set('value', i.getElement('option').get('value'));
-						i.dispatchEvent(chgEvent);
+						var opt = i.getElement('option');
+						if (opt) {
+							i.set('value', opt.get('value'));
+							i.dispatchEvent(chgEvent);
+						}
 					}
 
 					// All fabrik elements have ids - if no id we cannot do much.
