@@ -59,10 +59,16 @@ var FabrikModalRepeat = new Class({
             this.field[id] = target.getNext('input');
             if (!c) {
                 // Joomla 3
-                c = target.getParent('div.control-group');
+                c = document.id(this.elid);
             }
             this.origContainer = c;
             tbl = c.getElement('table');
+            // Remove the "name" attributes - we do not need to send the contents of fabrikmodalrepeat tables to the server
+            // because when we close the window we consolidate them into a single JSON encoded input field.
+            tbl.getElements('td input, td select, td textarea, td label, td button').each(function(i) {
+                i.removeAttribute('name');
+            });
+
             if (typeOf(tbl) !== 'null') {
                 this.el[id] = tbl;
             }
@@ -185,7 +191,7 @@ var FabrikModalRepeat = new Class({
     },
 
     /**
-     * Ensure that a new row has unique ids, names and label for properites
+     * Ensure that a new row has unique ids, names and label for properties
      *
      * @param source
      * @param row
@@ -193,10 +199,7 @@ var FabrikModalRepeat = new Class({
     fixUniqueAttributes: function (source, row) {
         var rowCount = source.getParent('table').getElements('tr').length - 1;
 
-        row.getElements('*[name]').each(function (node) {
-            node.name += '-' + rowCount;
-        });
-        row.getElements('*[id]').each(function (node) {
+        row.getElements('[id]').each(function (node) {
             node.id += '-' + rowCount;
         });
         row.getElements('label[for]').each(function (node) {
@@ -233,7 +236,8 @@ var FabrikModalRepeat = new Class({
             // Chosen reset
             clone.getElements('select').removeClass('chzn-done').show();
 
-            // Assign random id
+            // Sophist - Chosen is only active on open modals - rows already have unique ids
+            // and this may be screwing up finding the elements to update options
             clone.getElements('select').each(function (c) {
                 c.id = c.id + '_' + (Math.random() * 10000000).toInt();
             });
@@ -276,13 +280,14 @@ var FabrikModalRepeat = new Class({
             keys = Object.keys(a),
             newrow = keys.length === 0 || a[keys[0]].length === 0 ? true : false,
             rowcount = newrow ? 1 : a[keys[0]].length;
+        this.resetChosen(tr);
 
         // Build the rows from the json object
         for (var i = 1; i < rowcount; i++) {
-            var clone = tr.clone();
+            var clone = tr.clone(true,true);
             this.fixUniqueAttributes(tr, clone);
-            clone.inject(tr, 'after');
             this.resetChosen(clone);
+            clone.inject(tr, 'after');
         }
         this.stripe(target);
         var trs = this.getTrs(target);
@@ -290,7 +295,7 @@ var FabrikModalRepeat = new Class({
         // Populate the cloned fields with the json values
         for (i = 0; i < rowcount; i++) {
             keys.each(function (k) {
-                trs[i].getElements('*[name*=' + k + ']').each(function (f) {
+                trs[i].getElements('[id*=' + k + ']').each(function (f) {
                     if (f.get('type') === 'radio') {
                         if (f.value === a[k][i]) {
                             f.checked = true;
@@ -329,7 +334,8 @@ var FabrikModalRepeat = new Class({
         var json = {};
         for (var i = 0; i < this.names.length; i++) {
             var n = this.names[i];
-            var fields = c.getElements('*[name*=' + n + ']');
+            var idsel = '[id*=' + n + ']'
+            var fields = c.getElements('input' + idsel +', select' + idsel +', textarea' + idsel);
             json[n] = [];
             fields.each(function (field) {
                 if (field.get('type') === 'radio') {
@@ -339,7 +345,7 @@ var FabrikModalRepeat = new Class({
                 } else {
                     json[n].push(field.get('value'));
                 }
-            }.bind(this));
+            });
         }
         // Store them in the parent field.
         this.field[target].value = JSON.stringify(json);
