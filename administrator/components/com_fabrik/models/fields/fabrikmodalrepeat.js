@@ -67,6 +67,7 @@ define(["fab/fabrik", "admin/namespace"], function (Fabrik, FabrikAdmin) {
 				}
 				this.origContainer = c;
 				tbl = c.getElement('table');
+
 				// Remove the "name" attributes - we do not need to send the contents of fabrikmodalrepeat tables to the server
 				// because when we close the window we consolidate them into a single JSON encoded input field.
 				tbl.getElements('td input, td select, td textarea, td label, td button').each(function(i) {
@@ -285,12 +286,6 @@ define(["fab/fabrik", "admin/namespace"], function (Fabrik, FabrikAdmin) {
 				newrow = keys.length === 0 || a[keys[0]].length === 0 ? true : false,
 				rowcount = newrow ? 1 : a[keys[0]].length;
 			this.resetChosen(tr);
-
-			// Remove the "name" attributes - we do not need to send the contents of fabrikmodalrepeat tables to the server
-			// because when we close the window we consolidate them into a single JSON encoded input field.
-//			tr.getElements('td input, td select, td textarea, td label, td button').each(function(i) {
-//				i.removeAttribute('name');
-//			});
 
 			// Build the rows from the json object
 			for (var i = 1; i < rowcount; i++) {
