@@ -25,15 +25,14 @@ var FbRepeatGroup = new Class({
 		return this.element.getElements('.repeatGroup');
 	},
 
-	watchAdd : function () {
+	watchAdd: function () {
 		this.element.getElement('a[data-button=addButton]').addEvent('click', function (e) {
 			e.stop();
 			var div = this.repeatContainers().getLast();
-			var newC = this.counter;
-			var id = div.id.replace('-' + (newC - 1), '-' + newC);
+			// repeatgroup div does not have an id - but leaving this in case one is added later
+			var id = div.id.replace('-' + (this.counter - 1), '-' + this.counter);
 			var c = new Element('div', {'class': 'repeatGroup', 'id': id}).set('html', div.innerHTML);
 			c.inject(div, 'after');
-			this.counter++;
 
 			// Update params ids
 			if (this.counter !== 0) {
@@ -54,23 +53,22 @@ var FbRepeatGroup = new Class({
 					}
 
 					var oldId = i.id;
-					var a = oldId.split('-');
-					a[1] = newC;
-					var newId = i.id = a.join('-');
+					newId = this._incrementId(i);
 
 					c.getElements('[for="' + oldId + '"]').each(function (j) {
 						j.set('for',newId);
 					});
 
 					if (i.name) {
-						i.name = this._adjustName(i.name, +1, 0);
+						i.name = this._incrementName(i.name);
 					}
+
 					$H(FabrikAdmin.model.fields).each(function (plugins, type) {
 						var newPlugin = false;
 						if (typeOf(FabrikAdmin.model.fields[type][oldId]) !== 'null') {
 							var newPlugin = Object.clone(FabrikAdmin.model.fields[type][oldId]);
 							if (newPlugin !== false) {
-								newPlugin.cloned(newId, newC);
+								newPlugin.cloned(newId, this.counter);
 								FabrikAdmin.model.fields[type][newId] = newPlugin;
 							}
 						}
@@ -78,15 +76,18 @@ var FbRepeatGroup = new Class({
 				}.bind(this));
 
 				c.getElements('img[src=components/com_fabrik/images/ajax-loader.gif]').each(function (i) {
-					var a = i.id.split('-');
-					a.pop();
-					var newId = i.id = a.join('-') + '-' + this.counter + '_loader';
+					if (i.id) {
+						i.id = this._incrementId(i);
+					}
 				}.bind(this));
 
 				// Replace data-showon counters
-				this._updateShowon(c, +1, 0);
+				this._incrementShowon(c);
 				FabrikAdmin.reTip();
+				document.dispatchEvent(new CustomEvent('fabrikadmin.repeatgroup.add', {'detail':c}));
 			}
+
+			this.counter++;
 		}.bind(this));
 	},
 
@@ -105,25 +106,28 @@ var FbRepeatGroup = new Class({
 				var u = this.repeatContainers().getLast();
 				document.dispatchEvent(new CustomEvent('fabrikadmin.repeatgroup.remove', {'detail':u}));
 				u.destroy();
-				this.rename(x);
-				this._updateShowon(this.element, -1, x);
+				this.counter--;
 			}.bind(this));
 		}.bind(this));
 	},
 
-	rename : function (x) {
-		this.element.getElements('input, select, textarea.FbEditor').each(function (i) {
-			i.name = this._adjustName(i.name, -1, x);
-		}.bind(this));
+	_incrementId: function (target) {
+		// Handle both standard repeat-group ids and fabrikmodalrepeat which have J! subform naming
+		var id = target.id;
+		var newC = this.counter;
+		var oldC = newC - 1;
+		if (id.indexOf(oldC + '__') >= 0) {
+			var id = target.id = id.replace(oldC + '__', newC + "__");
+		} else if (id.indexOf('-' + oldC) >= 0) {
+			var id = target.id = id.replace('-' + oldC, '-' + newC);
+		}
+		return id;
 	},
 
-	_adjustName: function (n, delta, delIndex) {
+	_incrementName: function (n) {
 		var namebits = n.split('][');
 		var i = namebits[2].replace(']', '').toInt();
-		if (delta < 0 && (i < 1 || i < delIndex)) {
-			return n;
-		}
-		i += delta;
+		i++;
 		if (namebits.length === 3) {
 			i = i + ']';
 		}
@@ -131,13 +135,13 @@ var FbRepeatGroup = new Class({
 		return namebits.join('][');
 	},
 
-	_updateShowon: function(rg, delta, minIndex) {
+	_incrementShowon: function(rg) {
 		// Replace data-showon counters
 		rg.getElements('div[data-showon]').each(function (div) {
 			var showon = div.getProperty('data-showon');
 			// showon is a string of an array of json.
 			try {
-				showon = eval(showon);
+				showon = JSON.parse(showon);
 			}
 			catch(error) {
 				fconsole('Fabrik repeatgroup: data-showon with incorrect format:', showon);
@@ -149,7 +153,7 @@ var FbRepeatGroup = new Class({
 			}
 			for (var j = 0; j < showon.length; j++) {
 				if (showon[j].hasOwnProperty('field')) {
-					showon[j].field = this._adjustName(showon[j].field, delta, minIndex);
+					showon[j].field = this._incrementName(showon[j].field);
 				}
 			}
 			div.setAttribute('data-showon', JSON.stringify(showon));
