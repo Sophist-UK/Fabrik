@@ -144,11 +144,11 @@ var FbRepeatGroup = new Class({
 				showon = JSON.parse(showon);
 			}
 			catch(error) {
-				fconsole('Fabrik repeatgroup: data-showon with incorrect format:', showon);
+				fconsole('Fabrik repeatgroup: Showon incorrect format:', showon);
 				return;
 			}
 			if (!Array.isArray(showon)) {
-				fconsole('Fabrik repeatgroup: showon not an array', showon);
+				fconsole('Fabrik repeatgroup: Showon not array:', showon);
 				return;
 			}
 			for (var j = 0; j < showon.length; j++) {
