@@ -14,26 +14,33 @@
    backend forms esp. visualisation which can have tens of fabriktables / listfields fields which are element lists
    which run ajax to get the element list when the list name field is changed by the user.
 
-   In many cases these run identical ajax request several times, so this module also consolidates these into a single ajax request
-   and relays the callbacks to each of the original requests.
+   In many cases these run identical ajax request several times, so this module also consolidates these
+   into a single ajax request and relays the callbacks to each of the original requests.
 
-   It is anticipated that this will result in significant performance improvements for fabriktables / listfields fields,
-   where the elements dropdown for a list may be requested several times.
+   It is anticipated that this will result in significant performance improvements
+   for fabriktables / listfields fields, where the elements dropdown for a list may be requested several times.
 
-   Note 1: Because data is cached until user refreshes entire page by e.g. clicking Save, this will not take into account changes
-   to server data made by another user or in another window. This is not anticipated to be a problem for its intended usage only in
-   Fabrik back-end, however its primary use is to avoid repeated ajax calls when the user changes e.g. a list selection dropdown,
+   Note 1: Because data is cached until user refreshes entire page by e.g. clicking Save,
+   this will not take into account changes to server data made by another user or in another window.
+   This is not anticipated to be a problem for its intended usage only in Fabrik back-end,
+   where its primary use is to avoid repeated ajax calls when the user changes e.g. a list selection dropdown,
    however if this turns out to be an issue, clearing cache results (say 60 seconds) after last event has been handled would resolve this.
 
-   Note 2: Ajax calls are currently all Mootools, however this module has been structured to distinguish between Mootools and other ajax calls
-   and so can be easily extended to provide similar functionality for jQuery or native or other lightweight ajax functionality.
+   Note 2: Ajax calls are currently all Mootools, however this module has been structured
+   to distinguish between Mootools and other ajax calls and so can be easily extended to provide
+   similar functionality for jQuery or native or other lightweight ajax functionality.
 
-   Note 3: At present requests identical except for different Mootools Request timeout option values are considered different requests -
-   therefore onTimeout will run consistently based on the time since original request was sent.
+   Note 3: At present requests identical except for different Mootools Request timeout option values
+   are considered different requests - therefore onTimeout will run consistently based
+   on the time since original request was sent. In the future if needed, timeouts could be handled by timers.
 
-   Note 4: Since all callbacks are run in order to relay them to calling fields, this module includes functionality to allow for default error handlers.
-   so for example, error messages can be logged or an ajax request which failed due to a temporary network glitch could be retried.
-   In the initial release of this rewritten module, no such error handlers are included.
+   Note 4: Since all callbacks are run in order to relay them to calling fields, this module
+   includes functionality to allow for default callbacks if a callback is not defined in the request.
+   So for example, error messages can be logged or an ajax request which failed due to a temporary
+   network glitch could be retried, however in the initial release of this rewritten module
+   such error handlers are not included.
+
+   Similarly pre- and post-callback callbacks are also provided for - and these are used to avoid caching failed requests.
 
    Sophist March 2018
 */
