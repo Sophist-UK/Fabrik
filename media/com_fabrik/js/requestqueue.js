@@ -50,6 +50,14 @@ define(['jquery'], function (jQuery) {
 			return Request && request instanceof Request;
 		},
 
+		isMootoolsRequestHTML: function (request) {
+			return Request.HTML && request instanceof Request.HTML;
+		},
+
+		isMootoolsRequestJSON: function (request) {
+			return Request.JSON && request instanceof Request.JSON;
+		},
+
 		add: function (request) {
 			// Fabrik currently only uses Mootools xhr but this is designed to be extended to support e.g. jQuery or native ajax calls.
 			if (this.isMootoolsRequest(request)) {
@@ -67,7 +75,7 @@ define(['jquery'], function (jQuery) {
 		*/
 
 		// Callbacks taken from https://mootools.net/core/docs/1.6.0/Request/Request
-		mootoolsCallbacks: [
+		mootoolsRequestCallbacks: [
 			'request',
 			'loadstart',
 			'progress',
@@ -75,13 +83,24 @@ define(['jquery'], function (jQuery) {
 			'cancel',
 			'success',
 			'failure',
+			'error',
 			'exception',
 			'timeout',
 		],
 
 		addMootoolsRequest: function (request) {
+			var hash = JSON.stringify(request.options);
+
 			// Fabrik should not create synchronous requests, but if one is received, we need to run it immediately.
-			if (request.options.async === false) {
+			// There is also currently an issue with Request.HTML not working if multi-plexed.
+			if (request.options.async === false || this.isMootoolsRequestHTML(request)) {
+				hash += Math.floor(Math.random() * 1000000);
+				var cacheEntry = {
+					'metaRequest': request,
+					'requests': [],
+					'hash': hash,
+				};
+				this.cache[hash] = cacheEntry;
 				request.send();
 				return;
 			}
@@ -95,7 +114,7 @@ define(['jquery'], function (jQuery) {
 				}
 				cacheEntry.requests.push(request);
 				var i = 0;
-				this.mootoolsCallbacks.forEach(function(callbackName) {
+				this.mootoolsRequestCallbacks.forEach(function(callbackName) {
 					if (cacheEntry.hasOwnProperty(callbackName) && request.$events.hasOwnProperty(callbackName)) {
 						var xhr = cacheEntry[callbackName][0];
 						var args = cacheEntry[callbackName][1];
@@ -120,8 +139,9 @@ define(['jquery'], function (jQuery) {
 				};
 				this.cache[hash] = cacheEntry;
 
+				// Parse has rather than use request.options in order to eliminate prototype functions
 				var options = JSON.parse(hash);
-				this.mootoolsCallbacks.forEach(function(callbackName) {
+				this.mootoolsRequestCallbacks.forEach(function(callbackName) {
 					options['on' + callbackName.charAt(0).toUpperCase() + callbackName.slice(1)] = this.createMootoolsCallback(callbackName);
 				}.bind(this));
 
@@ -148,7 +168,7 @@ define(['jquery'], function (jQuery) {
 				this.cacheEntry.requests.forEach(function(request) {
 					if (request.$events.hasOwnProperty(callbackName)) {
 						if (Fabrik.debug) {
-							fconsole('fabrik requestqueue: Ajax', 'on' + callbackName, 'callback: Repeat', i);
+							fconsole('fabrik requestqueue: Ajax', 'on' + callbackName.charAt(0).toUpperCase() + callbackName.slice(1), 'callback: Repeat', i);
 						}
 						request.$events[callbackName].forEach(function(callback) {
 							callback.apply(this, args);
@@ -224,19 +244,34 @@ define(['jquery'], function (jQuery) {
 		},
 
 		empty: function () {
-			// Cancel all currently running xhr and empty the cache
-			this.cache.forEach(function (cacheEntry) {
-				if (this.isMootoolsRequest(cacheEntry.metaRequest)) {
-					this.cancelMootoolMetaRequest(cacheEntry);
-				} else if (Fabrik.debug) {
-					fconsole('fabrik requestqueue: Cannot cancel unknown request type', cacheEntry);
+			// Check whether all requests are complete
+			for (var hash in this.cache) {
+				if (this.cache.hasOwnProperty(hash)) {
+					if (this.cache[hash].metaRequest.isRunning()) {
+						return false;
+					}
 				}
-			}.bind(this));
+			}
+			return true;
+		},
+
+		cancelAll: function () {
+			// Cancel all currently running xhr and empty the cache
+			for (var hash in this.cache) {
+				if (this.cache.hasOwnProperty(hash)) {
+					var cacheEntry = this.cache[hash];
+					if (this.isMootoolsRequest(cacheEntry.metaRequest)) {
+						this.cancelMootoolMetaRequest(cacheEntry);
+					} else if (Fabrik.debug) {
+						fconsole('fabrik requestqueue: Cannot cancel unknown request type', cacheEntry);
+					}
+				}
+			}
 			this.cache = {};
 		},
 
 		cancelMootoolsMetaRequest: function (cacheEntry) {
-			if ('complete' in cacheEntry || 'cancel' in cacheEntry) {
+			if (!cacheEntry.metaRequest.isRunning()) {
 				return;
 			}
 			if (Fabrik.debug) {
