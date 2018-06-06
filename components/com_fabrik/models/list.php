@@ -8326,7 +8326,7 @@ class FabrikFEModelList extends JModelForm
 		$params->integer_length = 11;
 		$item->params = json_encode($params);
 
-    // PR#2031 do not show repeat group parent_id in list by default
+    		// PR#2031 do not show repeat group parent_id in list by default
 		$item->show_in_list_summary = 0;
 
 		if (!$item->store())
