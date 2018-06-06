@@ -7807,7 +7807,19 @@ class FabrikFEModelList extends JModelForm
 		}
 
 		$db->setQuery(sprintf($fmtSql, implode(",", $tmp), $where));
-		$db->execute();
+		try
+		{
+		    $db->execute();
+		}
+		catch (Exception $e)
+		{
+		    $msg = 'FABRIK ERROR: Incorrect update for the list "' . $table . '"';
+		    if (FabrikHelperHTML::isDebug(true))
+		    {
+			$msg .= ': ' . $e->getMessage() . ': ' . (string) $db->getQuery();
+		    }
+		    throw new Exception($msg, $e->getCode());
+		}
 
 		FabrikHelperHTML::debug((string) $db->getQuery(), 'list model updateObject:');
 
@@ -7859,7 +7871,19 @@ class FabrikFEModelList extends JModelForm
 		}
 
 		$db->setQuery(sprintf($fmtSql, implode(",", $fields), implode(",", $values)));
-		$db->execute();
+		try
+		{
+		    $db->execute();
+		}
+		catch (Exception $e)
+		{
+		    $msg = 'FABRIK ERROR: Incorrect insert for the list "' . $table . '"';
+		    if (FabrikHelperHTML::isDebug(true))
+		    {
+			$msg .= ': ' . $e->getMessage() . ': ' . (string) $db->getQuery();
+		    }
+		    throw new Exception($msg, $e->getCode());
+		}
 
 		$id = $db->insertid();
 
