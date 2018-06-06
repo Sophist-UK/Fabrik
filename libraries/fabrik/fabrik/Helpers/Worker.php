@@ -34,6 +34,7 @@ use JLog;
 use JMail;
 use JMailHelper;
 use JModelLegacy;
+use Joomla\CMS\Application\CMSApplication;
 use JPath;
 use JSession;
 use JTable;
@@ -1090,7 +1091,7 @@ class Worker
 	 * only want to use for stricty internal use that won't ever get shown to the user
 	 *
 	 * @return array
-	 * @throws Exception
+	 * @throws \Exception
 	 */
 	public static function unsafeReplacements()
 	{
@@ -1108,7 +1109,7 @@ class Worker
 	 * Get an associative array of replacements strings and values
 	 *
 	 * @return array
-	 * @throws Exception
+	 * @throws \Exception
 	 */
 	public static function globalReplacements()
 	{
@@ -1126,8 +1127,9 @@ class Worker
 			'{$jConfig_mailfrom}' => $config->get('mailfrom'),
 			'{where_i_came_from}' => $app->input->server->get('HTTP_REFERER', '', 'string'),
 			'{date}' => date('Ymd'),
+			'{year}' => date('Y'),
 			'{mysql_date}' => date('Y-m-d H:i:s'),
-			'{session.token}' => $token,
+			'{session.token}' => $token
 		);
 
 		foreach ($_SERVER as $key => $val)
@@ -1846,7 +1848,7 @@ class Worker
 			try
 			{
 				$fabrikDb->execute();
-			} catch (Exception $e)
+			} catch (\Exception $e)
 			{
 				// Fail silently
 			}
@@ -1979,22 +1981,35 @@ class Worker
 	 * Test if a string is a compatible date
 	 *
 	 * @param   string $d Date to test
+	 * @param   bool   $notNull  don't allow null / empty dates
+	 *
+	 * @return    bool
+	 */
+	public static function isNullDate($d)
+	{
+		$db         = self::getDbo();
+		$aNullDates = array('0000-00-000000-00-00', '0000-00-00 00:00:00', '0000-00-00', '', $db->getNullDate());
+
+		return in_array($d, $aNullDates);
+	}
+
+	/**
+	 * Test if a string is a compatible date
+	 *
+	 * @param   string $d Date to test
      * @param   bool   $notNull  don't allow null / empty dates
 	 *
 	 * @return    bool
 	 */
 	public static function isDate($d, $notNull = true)
 	{
-		$db         = self::getDbo();
-		$aNullDates = array('0000-00-000000-00-00', '0000-00-00 00:00:00', '0000-00-00', '', $db->getNullDate());
-
 		// Catch for ','
 		if (strlen($d) < 2)
 		{
 			return false;
 		}
 
-		if ($notNull && in_array($d, $aNullDates))
+		if ($notNull && self::isNullDate($d))
 		{
 			return false;
 		}
@@ -2002,7 +2017,7 @@ class Worker
 		try
 		{
 			$dt = new DateTime($d);
-		} catch (Exception $e)
+		} catch (\Exception $e)
 		{
 			return false;
 		}
@@ -2029,6 +2044,63 @@ class Worker
 	public static function addMonths($months, DateTime $date)
 	{
 		return $date->add(self::addMonthsInterval($months, $date));
+	}
+
+	/**
+	 * Get a user's TZ offset in MySql format, suitable for CONVERT_TZ
+	 *
+	 * @param  int  userId  userid or null (use logged on user if null)
+	 *
+	 * @return  string  symbolic timezone name (America/Chicago)
+	 */
+	public static function getUserTzOffsetMySql($userId = null)
+	{
+		$tz = self::getUserTzName($userId);
+		$tz = new \DateTimeZone($tz);
+		$date = new \DateTime("now", $tz);
+		$offset = $tz->getOffset($date) . ' seconds';
+		$dateOffset = clone $date;
+		$dateOffset->sub(\DateInterval::createFromDateString($offset));
+		$interval = $dateOffset->diff($date);
+		return $interval->format('%R%H:%I');
+	}
+
+	/**
+	 * Get a user's TZ offset in seconds
+	 *
+	 * @param  int  userId  userid or null (use logged on user if null)
+	 *
+	 * @return  int  seconds offset
+	 */
+	public static function getUserTzOffset($userId = null)
+	{
+		$tz = self::getUserTzName($userId);
+		$tz = new \DateTimeZone($tz);
+		$date = new \DateTime("now", $tz);
+		return $tz->getOffset($date);
+	}
+
+	/**
+	 * Get a user's TZ name
+	 *
+	 * @param  int  userId  userid or null (use logged on user if null)
+	 *
+	 * @return  string  symbolic timezone name (America/Chicago)
+	 */
+	public static function getUserTzName($userId = null)
+	{
+		if (empty($userId))
+		{
+			$user = JFactory::getUser();
+		}
+		else
+		{
+			$user = JFactory::getUser($userId);
+		}
+		$config = JFactory::getConfig();
+		$tz = $user->getParam('timezone', $config->get('offset'));
+
+		return $tz;
 	}
 
 	/**
@@ -2157,7 +2229,7 @@ class Worker
 		{
 			$mailer->addRecipient($recipient, $recipientName);
 		}
-		catch (Exception $e)
+		catch (\Exception $e)
 		{
 			return false;
 		}
@@ -2166,7 +2238,7 @@ class Worker
 		{
 			$mailer->addCc($cc);
 		}
-		catch (Exception $e)
+		catch (\Exception $e)
 		{
 			// not sure if we should bail if Cc is bad, for now just soldier on
 		}
@@ -2175,7 +2247,7 @@ class Worker
 		{
 			$mailer->addBcc($bcc);
 		}
-		catch (Exception $e)
+		catch (\Exception $e)
 		{
 			// not sure if we should bail if Bcc is bad, for now just soldier on
 		}
@@ -2186,7 +2258,7 @@ class Worker
 			{
 				$mailer->addAttachment($attachment);
 			}
-			catch (Exception $e)
+			catch (\Exception $e)
 			{
 				// most likely file didn't exist, ignore
 			}
@@ -2205,7 +2277,7 @@ class Worker
 				{
 					$mailer->addReplyTo($replyTo[$i], $replyToName[$i]);
 				}
-				catch (Exception $e)
+				catch (\Exception $e)
 				{
 					// carry on
 				}
@@ -2217,7 +2289,7 @@ class Worker
 			{
 				$mailer->addReplyTo($replyTo, $replyToName);
 			}
-			catch (Exception $e)
+			catch (\Exception $e)
 			{
 				// carry on
 			}
@@ -2231,7 +2303,7 @@ class Worker
 		{
 			$mailer->setSender(array($from, $fromName, $autoReplyTo));
 		}
-		catch (Exception $e)
+		catch (\Exception $e)
 		{
 			return false;
 		}
@@ -2272,7 +2344,7 @@ class Worker
 		{
 			$ret = $mailer->Send();
 		}
-		catch (Exception $e)
+		catch (\Exception $e)
 		{
 			return false;
 		}
@@ -2541,7 +2613,16 @@ class Worker
 	 */
 	public static function canPdf($puke = true)
 	{
-		$file = COM_FABRIK_LIBRARY . '/vendor/dompdf/dompdf/autoload.inc.php';
+		$config = \JComponentHelper::getParams('com_fabrik');
+
+		if ($config->get('fabrik_pdf_lib', 'dompdf') === 'dompdf')
+		{
+			$file = COM_FABRIK_LIBRARY . '/vendor/dompdf/dompdf/composer.json';
+		}
+		else
+		{
+			$file = COM_FABRIK_LIBRARY . '/vendor/mpdf/mpdf/composer.json';
+		}
 
 		if (!JFile::exists($file))
 		{
@@ -2657,12 +2738,12 @@ class Worker
 	/**
 	 * Remove messages from JApplicationCMS
 	 *
-	 * @param   JApplicationCMS $app  Application to kill messages from
+	 * @param   CMSApplication $app  Application to kill messages from
 	 * @param   string          $type Message type e.g. 'warning', 'error'
 	 *
 	 * @return  array  Remaining messages.
 	 */
-	public static function killMessage(\JApplicationSite $app, $type)
+	public static function killMessage(CMSApplication $app, $type)
 	{
 		$appReflection = new \ReflectionClass(get_class($app));
 		$_messageQueue = $appReflection->getProperty('_messageQueue');

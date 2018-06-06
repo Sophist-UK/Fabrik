@@ -13,18 +13,18 @@ namespace Fabrik\Helpers;
 // No direct access
 defined('_JEXEC') or die('Restricted access');
 
-use \JComponentHelper;
-use \stdClass;
-use \JModelLegacy;
-use \JHtmlBootstrap;
-use \JVersion;
-use \JUri;
-use \JRoute;
-use \JHtml;
-use \JFactory;
-use \JFile;
-use \JText;
-use \JBrowser;
+use JBrowser;
+use JComponentHelper;
+use JFactory;
+use JFile;
+use JHtml;
+use JHtmlBootstrap;
+use JModelLegacy;
+use JRoute;
+use JText;
+use JUri;
+use JVersion;
+use stdClass;
 
 jimport('joomla.filesystem.file');
 
@@ -1030,7 +1030,7 @@ EOD;
 				$liveSiteReq['FloatingTips'] = $mediaFolder . '/tips';
 			}
 
-			if ($fbConfig->get('advanced_behavior', '0') == '1')
+			if ($fbConfig->get('advanced_behavior', '0') !== '0')
 			{
 				$chosenOptions = $fbConfig->get('advanced_behavior_options', '{}');
 				$chosenOptions = empty($chosenOptions) ? new stdClass : ArrayHelper::fromObject(json_decode($chosenOptions));
@@ -1045,7 +1045,7 @@ EOD;
 				JHtml::_('script', 'media/com_fabrik/js/lib/art.js');
 			}
 
-			if ($fbConfig->get('advanced_behavior', '0') == '1')
+			if ($fbConfig->get('advanced_behavior', '0') !== '0')
 			{
 				$liveSiteSrc[] = "var chosenInterval = window.setInterval(function () {
 						if (Fabrik.buildChosen) {
@@ -1276,7 +1276,7 @@ EOD;
 	 * are not loaded from cache
 	 *
 	 * @return boolean
-	 * @throws Exception
+	 * @throws \Exception
 	 */
 	protected static function getBurstJs()
 	{
@@ -1843,9 +1843,9 @@ EOD;
 	 */
 	public static function debug($content, $title = 'output:')
 	{
-		$config = JComponentHelper::getParams('com_fabrik');
-		$app    = JFactory::getApplication();
-		$input  = $app->input;
+		$config  = JComponentHelper::getParams('com_fabrik');
+		$app     = JFactory::getApplication();
+		$input   = $app->input;
 
 		if ($config->get('use_fabrikdebug') == 0)
 		{
@@ -1862,15 +1862,21 @@ EOD;
 			return;
 		}
 
+		$jconfig = JFactory::getConfig();
+		$secret = $jconfig->get('secret');
+
 		echo '<div class="fabrikDebugOutputTitle">' . $title . '</div>';
 		echo '<div class="fabrikDebugOutput fabrikDebugHidden">';
 
 		if (is_object($content) || is_array($content))
 		{
-			echo '<pre>' . htmlspecialchars(print_r($content, true)) . '</pre>';
+		    $content = print_r($content, true);
+			$content = str_replace($secret, 'xxxxxxxxx', $content);
+			echo '<pre>' . htmlspecialchars($content) . '</pre>';
 		}
 		else
 		{
+		    $content = str_replace($secret, 'xxxxxxxxx', $content);
 			// Remove any <pre> tags provided by e.g. JQuery::dump
 			$content = preg_replace('/(^\s*<pre( .*)?>)|(<\/pre>\s*$)/i', '', $content);
 			echo '<pre>' . htmlspecialchars($content) . '</pre>';
@@ -2344,8 +2350,11 @@ EOT;
 
 		foreach ($bits as $key => $val)
 		{
-			$val = str_replace('"', "'", $val);
-			$p .= $key . '="' . $val . '" ';
+		    if (!\FabrikWorker::isJSON($val))
+            {
+			    $val = str_replace('"', "'", $val);
+			    $p .= $key . '="' . $val . '" ';
+			}
 		}
 
 		return $p;
@@ -3135,5 +3144,40 @@ EOT;
         }
 
         return $spans[$viewport][$size];
+	}
+
+	/**
+     * Load markup into DOMDocument, checking for entities.
+     *
+     * The loadXML() chokes if data has & in it.  But we can't htmlspecialchar() it, as that removes
+	 * the HTML markup we're looking for.  So we need to ONLY change &'s which aren't already part of
+	 * any HTML entities which may be in the data.  So use a negative lookahead regex, which finds & followed
+	 * by anything except non-space the ;.
+	 *
+	 * It also chokes if the data already contains any HTML entities which XML doesn't like, like &eacute;,
+	 * so first we need to do an html_entity_decode() to get rid of those!
+     *
+     * @param  string  $html  HTML to load
+     *
+     * @return  \DOMDocument
+     */
+	public static function loadDOMDocument($html)
+    {
+        // libxml_use_internal_errors won't supress the empty string warning, so ...
+        if (empty($html))
+        {
+            $html = '<span></span>';
+        }
+
+        // suppress output of warnings about DOM structure
+		$previous = libxml_use_internal_errors(true);
+        $doc = new \DOMDocument;
+        $html = html_entity_decode($html);
+        $html = preg_replace('/&(?!\S+;)/', '&amp;', $html);
+        $doc->loadXML($html);
+		libxml_clear_errors();
+		libxml_use_internal_errors($previous);
+
+		return $doc;
 	}
 }

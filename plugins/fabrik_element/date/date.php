@@ -294,7 +294,7 @@ class PlgFabrik_ElementDate extends PlgFabrik_ElementList
 			$name .= '[date]';
 		}
 
-		$class          = 'fabrikinput inputbox inout ' . $params->get('bootstrap_class', 'input-small');
+		$class          = 'fabrikinput inputbox input ' . $params->get('bootstrap_class', 'input-small');
 		$element->width = (int) $element->width < 0 ? 1 : (int) $element->width;
 		$calOpts        = array('class' => $class, 'size' => $element->width, 'maxlength' => '19');
 
@@ -1180,9 +1180,15 @@ class PlgFabrik_ElementDate extends PlgFabrik_ElementList
 				{
 					$v = str_replace(array("'", '"'), '', $v);
 				}
+
+				$filterType = FABRIKFILTER_NOQUOTES;
+			}
+			else
+			{
+				$filterType = FabrikWorker::isNullDate($value) ? FABRIKFILTER_TEXT : $eval;
 			}
 
-			return parent::getFilterValue($value, $condition, FABRIKFILTER_QUERY);
+			return parent::getFilterValue($value, $condition, $filterType);
 		}
 
 		$params       = $this->getParams();
@@ -2662,6 +2668,44 @@ class PlgFabrik_ElementDate extends PlgFabrik_ElementList
 		return $key;
 	}
 
+	/**
+	 * Internal element validation
+	 *
+	 * For the date element, this is just here to add the element to the 'modified' array for AJAX validation,
+	 * so it gets re-displayed.  Need to do this because we change the displayed date format when submitting (or on
+	 * change page in multipage forms, etc).
+	 *
+	 * @param   array $data          form data
+	 * @param   int   $repeatCounter repeat group counter
+	 *
+	 * @return bool
+	 */
+	public function validate($data, $repeatCounter = 0)
+	{
+		if ($this->app->input->get('fabrik_ajax', '0') === '1')
+		{
+			if (FabrikWorker::isDate($data))
+			{
+				$params    = $this->getParams();
+				$localDate = $this->displayDate($data);
+				$formModel = $this->getFormModel();
+				$name      = $this->getFullName(true, false);
+				$group     = $this->getGroup();
+
+				if ($group->canRepeat())
+				{
+					$formModel->modifiedValidationData[$name][$repeatCounter] = $localDate->format('Y-m-d H:i:s', true);
+				}
+				else
+				{
+					$formModel->modifiedValidationData[$name] = $localDate->format('Y-m-d H:i:s', true);
+				}
+			}
+		}
+
+		return true;
+	}
+
 }
 
 /**
@@ -2874,5 +2918,4 @@ class FabDate extends JDate
 
 		return $str;
 	}
-
 }

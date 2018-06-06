@@ -175,8 +175,10 @@ class FabrikFEModelImportcsv extends JModelForm
 		/* Track errors message- so if from frontend menu redirect 
 		    to current url rather than throwing exception
 		 */
-		$errmsg = ''; 
-		
+		$errmsg = '';
+		$app      = JFactory::getApplication();
+		$input    = $app->input;
+
 		if (!(bool) ini_get('file_uploads'))
 		{
             $errmsg = FText::_('COM_FABRIK_ERR_UPLOADS_DISABLED');
@@ -184,10 +186,9 @@ class FabrikFEModelImportcsv extends JModelForm
 		}
 		else
 		{
-		    $app      = JFactory::getApplication();
-		    $input    = $app->input;
+
 		    $userFile = $input->files->get('jform');
-		}    
+		}
 
 		if (!$userFile)
 		{
@@ -738,20 +739,12 @@ class FabrikFEModelImportcsv extends JModelForm
 		$app                 = JFactory::getApplication();
 		$jForm               = $app->input->get('jform', array(), 'array');
 		
-		// $$ Phil - If from menu, get dropData and overwrite from menu option 
-        $dropData = FabrikWorker::getMenuOrRequestVar('csv_import_dropdata', '', false, 'menu');
+		// Default to menu / request, allow override by UI (jform) options
+        $dropData = FabrikWorker::getMenuOrRequestVar('csv_import_dropdata', '0', false, 'menu');
+        $dropData = (int) FArrayHelper::getValue($jForm, 'drop_data', $dropData);
 
-		if ($dropData == '')
-		{
-			$dropData = (int) FArrayHelper::getValue($jForm, 'drop_data', 0);
-		}
-
-        $overWrite = FabrikWorker::getMenuOrRequestVar('csv_import_overwrite', '', false, 'menu');
-
-		if($overWrite == '')
-		{
-			$overWrite = (int) FArrayHelper::getValue($jForm, 'overwrite', 0);
-		}
+        $overWrite = FabrikWorker::getMenuOrRequestVar('csv_import_overwrite', '0', false, 'menu');
+        $overWrite = (int) FArrayHelper::getValue($jForm, 'overwrite', $overWrite);
 		
 		$model               = $this->getlistModel();
 		$model->importingCSV = true;

@@ -37,16 +37,78 @@ define(['jquery', 'fab/fabrik'], function (jQuery, Fabrik) {
 			if (this.options.couponElement !== '')
 			{
                 this.couponElement = self.form.formElements.get(this.options.couponElement);
-                var elEvnt = this.couponElement.getBlurEvent();
+                var couponElEvnt = this.couponElement.getBlurEvent();
 
 				self.form.dispatchEvent(
 					'',
 					this.options.couponElement,
-					elEvnt,
+                    couponElEvnt,
 					function (e) {
 						self.getCoupon(e);
 					}
 				);
+			}
+			else
+			{
+				this.couponElement = false;
+			}
+
+            if (this.options.productElement !== '')
+            {
+                this.productElement = self.form.formElements.get(this.options.productElement);
+                var productElEvnt = this.productElement.getBlurEvent();
+
+                self.form.dispatchEvent(
+                    '',
+                    this.options.productElement,
+                    productElEvnt,
+                    function (e) {
+                        self.getCost(e);
+                    }
+                );
+            }
+            else
+			{
+				this.productElement = false;
+			}
+
+            if (this.options.qtyElement !== '')
+            {
+                this.qtyElement = self.form.formElements.get(this.options.qtyElement);
+                var qtyElEvnt = this.qtyElement.getBlurEvent();
+
+                self.form.dispatchEvent(
+                    '',
+                    this.options.qtyElement,
+                    qtyElEvnt,
+                    function (e) {
+                        self.getCost(e);
+                    }
+                );
+
+                // if it's a field, watch for input events, like HTML 5 'number' controls, etc
+                if (this.qtyElement.plugin === 'fabrikfield') {
+                    self.form.dispatchEvent(
+                        '',
+                        this.options.qtyElement,
+                        'input',
+                        function (e) {
+                            self.getCost(e);
+                        }
+                    );
+                }
+            }
+            else
+			{
+				this.qtyElement = false;
+			}
+
+            if (this.options.totalElement !== '')
+            {
+                this.totalElement = self.form.formElements.get(this.options.totalElement);
+            }
+            else {
+				this.totalElement = false;
 			}
 
 			if (this.options.useCheckout) {
@@ -153,7 +215,7 @@ define(['jquery', 'fab/fabrik'], function (jQuery, Fabrik) {
 		},
 
 		getCoupon: function (e) {
-            Fabrik.loader.start('form_' + this.options.formid, Joomla.JText._('PLG_FORM_AUTOFILL_SEARCHING'));
+            Fabrik.loader.start('form_' + this.options.formid, Joomla.JText._('PLG_FORM_STRIPE_CALCULATING'));
 
             var v = this.couponElement.getValue(),
                 formid = this.options.formid,
@@ -178,20 +240,61 @@ define(['jquery', 'fab/fabrik'], function (jQuery, Fabrik) {
 
             }).always(function () {
                 Fabrik.loader.stop('form_' + self.options.formid);
-            })
-                .fail(function (jqXHR, textStatus, errorThrown) {
-                    window.alert(textStatus);
-                })
-                .done(function (json) {
-                    self.updateForm(json);
-                });
+            }).fail(function (jqXHR, textStatus, errorThrown) {
+				window.alert(textStatus);
+			}).done(function (json) {
+				self.updateForm(json);
+			});
+        },
 
+        getCost: function (e) {
+			if (this.totalElement) {
+                Fabrik.loader.start(this.options.totalElement, Joomla.JText._('PLG_FORM_STRIPE_CALCULATING'));
+			}
+            var productId = this.options.productElement !== '' ? this.productElement.getValue() : '',
+                qty = this.options.qtyElement !== '' ? this.qtyElement.getValue() : '',
+                coupon = this.options.couponElement !== '' ? this.couponElement.getValue() : '',
+                formid = this.options.formid,
+                self = this;
+
+            jQuery.ajax({
+                url     : 'index.php',
+                method  : 'post',
+                dataType: 'json',
+                'data'  : {
+                    'option'               : 'com_fabrik',
+                    'format'               : 'raw',
+                    'task'                 : 'plugin.pluginAjax',
+                    'plugin'               : 'stripe',
+                    'method'               : 'ajax_getCost',
+                    'amount'               : this.options.origAmount,
+                    'g'                    : 'form',
+                    'productId'            : productId,
+					'qty'                  : qty,
+					'coupon'               : coupon,
+                    'formid'               : formid,
+                    'renderOrder'          : this.options.renderOrder
+                }
+
+            }).always(function () {
+                if (self.totalElement) {
+                    Fabrik.loader.stop(self.options.totalElement);
+                }
+            }).fail(function (jqXHR, textStatus, errorThrown) {
+				window.alert(textStatus);
+			}).done(function (json) {
+				self.updateForm(json);
+			});
         },
 
 		updateForm: function (json) {
 			this.options.amount = json.stripe_amount;
 			jQuery('.fabrikStripePrice').html(json.display_amount);
 			jQuery('.fabrikStripeCouponText').html(json.msg);
+
+			if (this.totalElement) {
+				this.totalElement.update(json.display_amount);
+			}
 		}
 
 	});

@@ -13,9 +13,9 @@ defined('_JEXEC') or die('Restricted access');
 
 jimport('joomla.application.component.modelform');
 
+use Fabrik\Helpers\Pagination;
 use Joomla\Registry\Registry;
 use Joomla\Utilities\ArrayHelper;
-use Fabrik\Helpers\Pagination;
 
 require_once COM_FABRIK_FRONTEND . '/models/list-advanced-search.php';
 
@@ -2320,12 +2320,26 @@ class FabrikFEModelList extends JModelForm
 		$rowId = $this->getSlug($row);
 		$isAjax = $this->isAjaxLinks() ? '1' : '0';
 		$isCustom = $customLink !== '';
+		$isIcon = false;
+		
+		/* Check if the data component is html, if it is an icon lnk and image parse it out */
+		$html = FabrikHelperHTML::loadDOMDocument($data);
+		$a   = $html->getElementsByTagName('a')->item(0);
+		$img = $html->getElementsByTagName('img')->item(0);
+		if (isset($html) && isset($a) && isset($img))
+		{
+			$isIcon = true;
+		}
 
 		$paths = array(
 			COM_FABRIK_FRONTEND . '/views/list/tmpl/' . $this->getTmpl() . '/layouts/element/' . $elementModel->getFullName(true, false)
 		);
 
-		$layout                  = $this->getLayout('element.fabrik-element-custom-link', $paths);
+		if ($isIcon === true ) {
+			$layout = $this->getLayout('element.fabrik-element-custom-icon-link', $paths);
+		} else {
+			$layout = $this->getLayout('element.fabrik-element-custom-link', $paths);
+		}
 		$displayData             = new stdClass;
 		$displayData->loadMethod = $loadMethod;
 		$displayData->dataList   = $dataList;
@@ -2335,9 +2349,18 @@ class FabrikFEModelList extends JModelForm
 		$displayData->class      = $class;
 		$displayData->link       = $link;
 		$displayData->rowId      = $rowId;
-		$displayData->data       = $data;
 		$displayData->target     = $target;
-		$data                    = $layout->render($displayData);
+
+		if  ($isIcon) {
+			$displayData->data_original = $a->nodeValue;
+			$displayData->opts = $a->getAttribute('opts');
+			$displayData->data = $a->ownerDocument->saveHTML($img);
+			$displayData->title = $a->getAttribute('title');
+		} else {
+			$displayData->data = $data;
+		}
+		
+		$data = $layout->render($displayData);
 
 		return $data;
 	}
@@ -5224,49 +5247,6 @@ class FabrikFEModelList extends JModelForm
 		}
 
 		return $this->isView;
-
-		/* $$$ hugh - because querying INFORMATION_SCHEMA can be very slow (like minutes!) on
-		 * a shared host, I made a small change.  The edit table view now adds a hidden 'isview'
-		* param, defaulting to -1 on new tables.  So the following code should only ever execute
-		* one time, when a new table is saved.  Before this change, because 'isview' wasn't
-		* included on the edit view (because it's not a "real" user settable param), so didn't
-		* exist when we picked up the params from the submitted data, this code was running (twice!)
-		* every time a table was saved.
-		* http://fabrikar.com/forums/showthread.php?t=16622&page=6
-		*/
-
-		/*
-		if (isset($this->isView))
-		{
-			return $this->isView;
-		}
-
-		$db = FabrikWorker::getDbo();
-		$table = $this->getTable();
-		$cn = $this->getConnection();
-
-		$c = $cn->getConnection();
-		$dbName = $c->database;
-
-		if ($table->db_table_name == '')
-		{
-			return;
-		}
-
-		// @todo JQueryBuilder this?
-		$sql = " SELECT table_name, table_type, engine FROM INFORMATION_SCHEMA.tables " . "WHERE table_name = " . $db->q($table->db_table_name)
-		. " AND table_type = 'view' AND table_schema = " . $db->q($dbName);
-		$db->setQuery($sql);
-		$row = $db->loadObjectList();
-		$this->isView = empty($row) ? "0" : "1";
-
-		// Store and save param for following tests
-		$params->set('isview', $this->isView);
-		$table->params = (string) $params;
-		$table->store();
-
-		return $this->isView;
-		*/
 	}
 
 	/**
@@ -5278,6 +5258,16 @@ class FabrikFEModelList extends JModelForm
 	 */
 	public function storeRequestData($request)
 	{
+		/**
+		 * If we're processing a record count for related data, don't store the filter.  Corner case when you have
+		 * multiple list plugins, and one has related data to another, and they happen to use that element
+		 * in a plugin filter
+		 */
+		if (!$this->app->input->get('fabrik_incsessionfilters', true))
+		{
+			return;
+		}
+
 		$package = $this->app->getUserState('com_fabrik.package', 'fabrik');
 		$input = $this->app->input;
 		$registry = $this->session->get('registry');
@@ -5452,8 +5442,9 @@ class FabrikFEModelList extends JModelForm
 					{
 						$matchSql[] = 'MATCH(' . implode(',', $fields) . ')' . ' ' . $condition . ' (' . $db->q($value) . ' IN BOOLEAN MODE)';
 					}
-
-					$this->filters['sqlCond'][$i] = '(' . implode(' OR ', $matchSql) . ')';
+					$mode = $this->app->input->get('search-mode-advanced', 'all');
+					$join = $mode === 'none' ? ' AND ' : ' OR ';
+					$this->filters['sqlCond'][$i] = '(' . implode($join, $matchSql) . ')';
 				}
 				else
 				{
@@ -6552,18 +6543,11 @@ class FabrikFEModelList extends JModelForm
 			|| ($params->get('search-mode', '0') == 'OR'))
 		{
 			// One field to search them all (and in the darkness bind them)
-			//$requestKey = $this->getFilterModel()->getSearchAllRequestKey();
-			//$v = $this->getFilterModel()->getSearchAllValue('html');
 			$o = new stdClass;
-			//$searchLabel = FText::_($params->get('search-all-label', 'COM_FABRIK_SEARCH'));
-			//$class = FabrikWorker::j3() ? 'fabrik_filter search-query input-medium' : 'fabrik_filter';
 			$o->id = 'searchall_' . $this->getRenderContext();
 			$o->displayValue = '';
-			//$o->filter = '<input type="search" size="20" placeholder="' . $searchLabel . '"title="' . $searchLabel . '" value="' . $v
-			//. '" class="' . $class . '" name="' . $requestKey . '" id="' . $id . '" />';
-
 			$displayData = new stdClass;
-			$displayData->id = $id;
+			$displayData->id = $o->id;
 			$displayData->searchLabel = FText::_($params->get('search-all-label', 'COM_FABRIK_SEARCH'));;
 			$displayData->class = FabrikWorker::j3() ? 'fabrik_filter search-query input-medium' : 'fabrik_filter';
 			$displayData->v = $this->getFilterModel()->getSearchAllValue('html');
@@ -6582,9 +6566,6 @@ class FabrikFEModelList extends JModelForm
 					'search-mode-advanced',
 					$params->get('search-mode-advanced-default', 'all')
 				);
-
-				//$o->filter .= '&nbsp;'
-				//		. JHTML::_('select.genericList', $searchOpts, 'search-mode-advanced', "class='fabrik_filter'", 'value', 'text', $mode);
 			}
 			else
 			{
@@ -7120,10 +7101,13 @@ class FabrikFEModelList extends JModelForm
 			$edit = false;
 		}
 
-		if ($this->canSelectRows() || $this->canEditARow() || $details || $edit || $filtersUnderHeadingsAndGo)
+		$pluginManager = FabrikWorker::getPluginManager();
+		$pluginManager->runPlugins('button', $this, 'list', array('heading' => true));
+		$pluginHeadings = array_filter($pluginManager->data);
+
+		if (!empty($pluginHeadings) || $this->canSelectRows() || $this->canEditARow() || $details || $edit || $filtersUnderHeadingsAndGo)
 		{
 			// 3.0 actions now go in one column
-			$pluginManager = FabrikWorker::getPluginManager();
 			$headingButtons = array();
 
 			if ($this->deletePossible())
@@ -7131,12 +7115,9 @@ class FabrikFEModelList extends JModelForm
 				$headingButtons[] = $this->deleteButton('', true);
 			}
 
-			$pluginManager->runPlugins('button', $this, 'list', array('heading' => true));
-			$res = array_filter($pluginManager->data);
-
 			if (FabrikWorker::j3())
 			{
-				$headingButtons = array_merge($headingButtons, $res);
+				$headingButtons = array_merge($headingButtons, $pluginHeadings);
 
 				if (empty($headingButtons))
 				{
@@ -7157,12 +7138,12 @@ class FabrikFEModelList extends JModelForm
 			}
 			else
 			{
-				foreach ($res as &$r)
+				foreach ($pluginHeadings as &$r)
 				{
 					$r = $this->actionMethod() == 'dropdown' ? '<li>' . $r . '</li>' : $r;
 				}
 
-				$headingButtons = array_merge($headingButtons, $res);
+				$headingButtons = array_merge($headingButtons, $pluginHeadings);
 				$aTableHeadings['fabrik_actions'] = empty($headingButtons) ? '' : '<ul class="fabrik_action">' . implode("\n", $headingButtons) . '</ul>';
 			}
 
@@ -8121,6 +8102,17 @@ class FabrikFEModelList extends JModelForm
 	 */
 	public function doCalculations()
 	{
+		/*
+		if ($this->config->get('dbtype') === 'pdomysql')
+		{
+			echo $this->cacheDoCalculations($this, $this->getId());
+		}
+		else
+		{
+			$cache = FabrikWorker::getCache($this);
+			$cache->call(array(get_class($this), 'cacheDoCalculations'), $this, $this->getId());
+		}
+		*/
 		$cache = FabrikWorker::getCache($this);
 		$cache->call(array(get_class($this), 'cacheDoCalculations'), $this->getId());
 	}
@@ -8297,6 +8289,9 @@ class FabrikFEModelList extends JModelForm
 		$item->name = $item->label = 'id';
 		$item->group_id = $groupId;
 
+		// PR#2031 do not show repeat group parent_id in list by default
+		$item->show_in_list_summary = 0;
+
 		if (!$item->store())
 		{
 			JError::raiseWarning(500, $item->getError());
@@ -8330,6 +8325,9 @@ class FabrikFEModelList extends JModelForm
 		$params->text_format = "integer";
 		$params->integer_length = 11;
 		$item->params = json_encode($params);
+
+    // PR#2031 do not show repeat group parent_id in list by default
+		$item->show_in_list_summary = 0;
 
 		if (!$item->store())
 		{
@@ -9247,6 +9245,10 @@ class FabrikFEModelList extends JModelForm
 			return $match;
 		}
 
+		$config = JFactory::getConfig();
+		$prefix = $config->get('dbprefix');
+		$match  = str_replace('#__', $prefix, $match);
+
 		/* strip the {} */
 		$match = JString::substr($match, 1, JString::strlen($match) - 2);
 
@@ -9354,6 +9356,16 @@ class FabrikFEModelList extends JModelForm
 		$keyIdentifier = $this->getKeyIndetifier($row);
 		$row = ArrayHelper::fromObject($row);
 		$link = $this->parseMessageForRowHolder($link, $row);
+
+		// special case, if someone is using a link element placeholder as a custom link
+		if (FabrikWorker::isJSON($link))
+		{
+			$test = FabrikWorker::JSONtoData($link);
+			if (is_object($test) && isset($test->link))
+			{
+				$link = $test->link;
+			}
+		}
 
 		if (preg_match('/([\?&]rowid=)/', htmlspecialchars_decode($link)))
 		{
@@ -10244,13 +10256,11 @@ class FabrikFEModelList extends JModelForm
 				}
 			}
 		}
+
 		// $$$ rob needs the item id for when sef urls are turned on
-		if ($input->get('option') !== 'com_' . $package)
+		if (!array_key_exists('Itemid', $querystring))
 		{
-			if (!array_key_exists('Itemid', $querystring))
-			{
-				$qs['Itemid'] = $itemId;
-			}
+			$qs['Itemid'] = $itemId;
 		}
 
 		if (empty($url))
@@ -11251,7 +11261,7 @@ class FabrikFEModelList extends JModelForm
 
 			if ($document->getType() === 'pdf')
 			{
-				$this->tmpl = $params->get('pdf_template', $this->tmpl);
+				$this->tmpl = $input->get('pdf_template', $params->get('pdf_template', $this->tmpl));
 			}
 
 			// Migration test
