@@ -67,8 +67,8 @@ var fabriktablesElement = new Class({
 
 		if (this.el.hasClass('chzn-done')) {
 			jQuery('#' + this.el.id).on('change', function (event) {
-				document.id(self.el.id).fireEvent('change', new Event.Mock(document.id(self.el.id), 'change'));
-			});
+				document.id(this.el.id).fireEvent('change', new Event.Mock(document.id(this.el.id), 'change'));
+			}.bind(this));
 		}
 
 		this.el.addEvent('change', function (e) {
